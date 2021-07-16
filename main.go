@@ -43,7 +43,7 @@ func main() {
 		ns            = envOrDefault("CONTAINERD_NAMESPACE", filepath.Base(os.Args[0]))
 		workers       = runtime.GOMAXPROCS(0)
 		debug         bool
-		format        = envOrDefault("OUTPUT_FORMAT", "{{ .Ref }}{{if .HasError }} ERROR {{.Data}}{{else}}{{if .HasEntries }} NOTOK {{ .Data }}{{ else }} OK {{end}}{{end}}\n")
+		format        = envOrDefault("OUTPUT_FORMAT", "{{.}}\n")
 		platform      = platforms.DefaultString()
 		allowPlainTTP bool
 	)
