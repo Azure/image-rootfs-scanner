@@ -142,7 +142,7 @@ func main() {
 					}
 				}
 				return containerd.WithPullSnapshotter(snapshotter)
-			}(), containerd.WithResolver(resolver),
+			}(), containerd.WithResolver(resolver))
 
 			buf := bytes.NewBuffer(nil)
 			if err := tmpl.Execute(buf, result{Found: report, Err: err, Ref: ref}); err != nil {
