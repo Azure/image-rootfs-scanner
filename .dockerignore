@@ -1,1 +1,3 @@
 Dockerfile
+*.md
+.gitignore
