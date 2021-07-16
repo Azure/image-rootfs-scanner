@@ -23,7 +23,7 @@ import (
 
 var (
 	// specifies which paths to recrusively look for specified files
-	targetPaths = []string{}
+	targetPaths = []string{"/bin", "/sbin", "/usr/bin", "/usr/sbin", "/usr/local/bin", "/usr/local/sbin"}
 	targetBins  = []string{"sh", "bash", "ssh", "curl", "wget", "nc", "csh", "zsh", "fish"}
 )
 
