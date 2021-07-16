@@ -30,7 +30,7 @@ It outputs a report which you can customize if needed (see the `--format` flag).
 
 ```
 $ sudo image-rootfs-scanner docker.io/library/busybox:latest
-docker.io/library/busybox:latest FOUND ["nc","sh","wget"]
+docker.io/library/busybox:latest MATCH ["nc","sh","wget"]
 ```
 
 The report has three columns, the image ref, the status, and a json encoded value of the data.
@@ -44,9 +44,9 @@ The available template fields for the report (available to `--format`) are:
 
 - .Ref - The image reference used to fetch the image
 - .Found - An array of found binaries
-- .Status - Strinified status. `ERROR` if there was an error, `FOUND` there are found binaries, and `NONE` for no matches.
+- .Status - Strinified status. `ERROR` if there was an error, `MATCH` there are found binaries, and `NONE` for no matches.
 - .Data - json representation of the data, such as an error or the matched binaries.
-- .HasEntries - Boolean for `len(found) > -1`
+- .HasMatches - Boolean for `len(found) > -1`
 - .HasError - Boolean for if there is an error
 
 By default this scans for several different things such as `bash`, `zsh`,

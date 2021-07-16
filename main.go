@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,10 +30,9 @@ var (
 func main() {
 	flags := flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ExitOnError)
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "could not determine user home directory:", err)
-		os.Exit(1)
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "~/" // Using this for display purposes, if we need home and did not get one we'll error out later
 	}
 
 	var (
@@ -43,7 +41,7 @@ func main() {
 		ns            = envOrDefault("CONTAINERD_NAMESPACE", filepath.Base(os.Args[0]))
 		workers       = runtime.GOMAXPROCS(0)
 		debug         bool
-		format        = envOrDefault("OUTPUT_FORMAT", "{{.}}\n")
+		format        = envOrDefault("OUTPUT_FORMAT", "{{.}}")
 		platform      = platforms.DefaultString()
 		allowPlainTTP bool
 	)
@@ -65,6 +63,12 @@ func main() {
 	}
 	if err := flags.Parse(args); err != nil {
 		fmt.Fprintln(os.Stderr, "error parsing flags", err)
+		os.Exit(1)
+	}
+
+	if home == "~/" && !flags.Lookup(root).Changed && sockPath == "" {
+		fmt.Fprintln(os.Stderr, "Could not determine home dir for data storage.")
+		fmt.Fprintln(os.Stderr, "Either use containerd or specify a custom --root")
 		os.Exit(1)
 	}
 
@@ -150,7 +154,7 @@ func main() {
 			if err := tmpl.Execute(buf, result{Found: report, Err: err, Ref: ref}); err != nil {
 				panic(err)
 			}
-			io.Copy(os.Stdout, buf) //nolint:errcheck
+			fmt.Fprintln(os.Stdout, buf)
 		}(ref)
 	}
 }
@@ -160,51 +164,4 @@ func envOrDefault(varName, defaultValue string) string {
 		return v
 	}
 	return defaultValue
-}
-
-type result struct {
-	Found []string
-	Ref   string
-	Err   error
-}
-
-func (r result) Status() string {
-	switch {
-	case r.Err != nil:
-		return "ERROR"
-	case len(r.Found) == 0:
-		return "FOUND"
-	default:
-		return "NONE"
-	}
-}
-
-func (r result) HasEntries() bool {
-	return len(r.Found) > 0
-}
-
-func (r result) HasError() bool {
-	return r.Err != nil
-}
-
-func (r result) Data() string {
-	if r.Err != nil {
-		return fmt.Sprintf(`{"error": "%s"}`, r.Err)
-	}
-
-	b := &strings.Builder{}
-	b.WriteString(`[`)
-	for i, found := range r.Found {
-		b.WriteString(`"` + found + `"`)
-		if i < len(r.Found)-1 {
-			b.WriteString(",")
-		}
-	}
-	b.WriteString("]")
-
-	return b.String()
-}
-
-func (r result) String() string {
-	return fmt.Sprintf("%s %s %s", r.Ref, r.Status(), r.Data())
 }
