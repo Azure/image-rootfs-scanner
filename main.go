@@ -111,7 +111,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	client.NamespaceService().Create(ctx, ns, nil)
+	client.NamespaceService().Create(ctx, ns, nil) //nolint:errcheck
 	ctx = namespaces.WithNamespace(ctx, ns)
 
 	sem := semaphore.NewWeighted(int64(workers))
@@ -130,7 +130,9 @@ func main() {
 
 	for _, ref := range flags.Args() {
 		wg.Add(1)
-		sem.Acquire(ctx, 1)
+		if err := sem.Acquire(ctx, 1); err != nil {
+			panic(err)
+		}
 		go func(ref string) {
 			defer wg.Done()
 			defer sem.Release(1)
@@ -148,7 +150,7 @@ func main() {
 			if err := tmpl.Execute(buf, result{Found: report, Err: err, Ref: ref}); err != nil {
 				panic(err)
 			}
-			io.Copy(os.Stdout, buf)
+			io.Copy(os.Stdout, buf) //nolint:errcheck
 		}(ref)
 	}
 }

@@ -50,7 +50,7 @@ func run(ctx context.Context, client *containerd.Client, ref, snapshotter string
 			return nil, errors.Wrap(err, "error getting mounts")
 		}
 	}
-	defer client.SnapshotService(snapshotter).Remove(ctx, target)
+	defer client.SnapshotService(snapshotter).Remove(ctx, target) //nolint:errcheck
 
 	log.G(ctx).Debug("Mounting image rootfs")
 	if err := mount.All(mounts, target); err != nil {
