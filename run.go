@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
@@ -71,14 +72,17 @@ func run(ctx context.Context, client *containerd.Client, ref, snapshotter string
 	for _, scanPath := range targetPaths {
 		err := filepath.WalkDir(filepath.Join(target, scanPath), func(p string, info os.DirEntry, err error) error {
 			if err != nil {
-				return err
+				if !os.IsNotExist(err) {
+					return err
+				}
+				return nil
 			}
 			if info.IsDir() {
 				return nil
 			}
 			for _, bin := range targetBins {
 				if filepath.Base(p) == bin {
-					found = append(found, bin)
+					found = append(found, strings.TrimPrefix(p, target))
 				}
 			}
 			return nil
