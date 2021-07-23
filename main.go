@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -15,8 +17,8 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/remotes/docker"
-	"github.com/containerd/continuity"
 	"github.com/cpuguy83/dockercfg"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/sync/semaphore"
@@ -39,7 +41,8 @@ func main() {
 		format        = envOrDefault("OUTPUT_FORMAT", "{{.}}")
 		platform      = platforms.DefaultString()
 		allowPlainTTP bool
-		matchPattern  = "/bin/(sh|bash|ssh|curl|wget|nc|csh|zsh|fish)$"
+		matchPattern  = "bin/(sh|bash|ssh|curl|wget|nc|csh|zsh|fish)$"
+		matchTmpl     = "{{ regexp .Path \"" + matchPattern + "\" }}"
 	)
 
 	flags.StringVar(&sockPath, "containerd", sockPath, "path to containerd socket to use as storage backend")
@@ -50,7 +53,8 @@ func main() {
 	flags.StringVar(&format, "format", format, "set the template to use for the result")
 	flags.StringVar(&platform, "platform", platform, "specify platform for image to pull")
 	flags.BoolVar(&allowPlainTTP, "plain-http", allowPlainTTP, "Allow plain HTTP for registry requests")
-	flags.StringVar(&matchPattern, "pattern", matchPattern, "regexp pattern to match file paths")
+	flags.StringVar(&matchPattern, "pattern", matchPattern, "regexp pattern to match file paths for the default matcher")
+	flags.StringVar(&matchTmpl, "match", matchTmpl, "go-template to run to determine if a file should be matched, must return a bool value")
 
 	var args []string
 	if len(os.Args) > 1 {
@@ -111,7 +115,47 @@ func main() {
 			))),
 	})
 
-	matcher := regexp.MustCompile(matchPattern)
+	regexes := map[string]*regexp.Regexp{}
+	var regMu sync.Mutex
+	getRegexp := func(expr string) (*regexp.Regexp, error) {
+		regMu.Lock()
+		defer regMu.Unlock()
+
+		if v, ok := regexes[expr]; ok {
+			return v, nil
+		}
+		r, err := regexp.Compile(expr)
+		if err != nil {
+			return nil, err
+		}
+		regexes[expr] = r
+		return r, nil
+	}
+
+	match := template.Must(template.New("match").Funcs(template.FuncMap{
+		"regexp": func(p, expr string) (bool, error) {
+			r, err := getRegexp(expr)
+			if err != nil {
+				return false, err
+			}
+			return r.MatchString(p), nil
+		},
+		"exec": func(v interface{}, bin string, args ...string) (bool, error) {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return false, err
+			}
+			cmd := exec.CommandContext(ctx, bin, args...)
+			cmd.Stdin = bytes.NewReader(b)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				if cmd.ProcessState.ExitCode() > 1 {
+					return false, errors.Wrap(err, string(out))
+				}
+			}
+			return cmd.ProcessState.ExitCode() == 0, nil
+		},
+	}).Parse(matchTmpl))
 
 	for _, ref := range flags.Args() {
 		wg.Add(1)
@@ -130,31 +174,7 @@ func main() {
 				r.Err = err
 			} else {
 				r.manifest = m
-
-				// So we don't have to allocate a new slice for every invocation of our
-				// walk function.
-				singlePath := make([]string, 1)
-
-				err := walkManifest(ctx, m, func(ctx context.Context, res Resource) error {
-					if res.Mode().IsDir() {
-						return nil
-					}
-					var paths []string
-					if h, ok := res.(continuity.Hardlinkable); ok {
-						paths = h.Paths()
-					} else {
-						singlePath[0] = res.Path()
-						paths = singlePath
-					}
-
-					for _, p := range paths {
-						if matcher.MatchString(p) {
-							r.Found = append(r.Found, p)
-						}
-					}
-					return nil
-				})
-				if err != nil {
+				if err := scan(ctx, &r, match); err != nil {
 					r.Err = err
 				}
 			}

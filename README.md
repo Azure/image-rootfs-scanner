@@ -40,6 +40,8 @@ If there is an error it will be in the report, example for running without the n
 docker.io/library/busybox:latest ERROR {"error": "error mounting rootfs: operation not permitted"}
 ```
 
+#### Fields
+
 The available template fields for the report (available to `--format`) are:
 
 - .Ref - The image reference used to fetch the image
@@ -54,6 +56,26 @@ The available template fields for the report (available to `--format`) are:
 By default this scans for several different things such as `bash`, `zsh`,
 `ssh`, `curl`, and more. See `--help` for the full list.
 You can also customize it to only look in a specific location instead of `/` recursively.
+
+#### Matching
+
+There is a default template provided to match certain binaries in a bin/ directory.
+You can customize this by changing the `--match` flag.
+The value of this flag is a go-template which must evaluate to a boolean value
+which can be parsed by Go's `strconv.ParseBool`.
+
+In addition to Go's builtin template functions, we provide:
+
+- `regexp` which takes two string arguments. The first argument is the value
+  you want to evaluate. The second argument is the regular expression you want to
+  use to match with. Example: `{{ regexp .Path "bin/(bash|sh)$" }}`
+- `exec` which runs whatever command+args you tell it to run. An exit code of 0
+  means true, exit code 1 means false. Any other exit code is an error condition.
+  Stdin contains the json encoded resource.
+  Anything you write to stdout/stderr will be used to write the error message.
+  Example: `{{ exec "/bin/sh", "-c", "[ \"$(jq .path <@0)\" = \"/bin/sh\" ]" }}`.
+  This evaluates if the path of the source is `/bin/sh` and signals a match if so.
+  This is executed in the context of the scanner tool, not the image being processed.
 
 ## Building
 
