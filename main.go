@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
-	"strings"
 	"sync"
 	"text/template"
 
@@ -20,12 +20,6 @@ import (
 	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/sync/semaphore"
-)
-
-var (
-	// specifies which paths to recrusively look for specified files
-	targetPaths = []string{"/bin", "/sbin", "/usr/bin", "/usr/sbin", "/usr/local/bin", "/usr/local/sbin"}
-	targetBins  = []string{"sh", "bash", "ssh", "curl", "wget", "nc", "csh", "zsh", "fish"}
 )
 
 func main() {
@@ -45,18 +39,18 @@ func main() {
 		format        = envOrDefault("OUTPUT_FORMAT", "{{.}}")
 		platform      = platforms.DefaultString()
 		allowPlainTTP bool
+		matchPattern  = "/bin/(sh|bash|ssh|curl|wget|nc|csh|zsh|fish)$"
 	)
 
 	flags.StringVar(&sockPath, "containerd", sockPath, "path to containerd socket to use as storage backend")
 	flags.StringVar(&root, "root", root, "Directory to store data such as images and mounts when in standalone(no containerd) mode")
 	flags.StringVar(&ns, "namespace", ns, "namespace for containerd content")
-	flags.StringSliceVar(&targetPaths, "target", targetPaths, "target paths to search for files, otherwise the full iamge will be searched")
-	flags.StringSliceVar(&targetBins, "target-bins", targetBins, "target binaries to search for")
 	flags.IntVar(&workers, "workers", workers, "Set the number of simultaneous images to work on")
 	flags.BoolVar(&debug, "debug", debug, "enable debug mode")
 	flags.StringVar(&format, "format", format, "set the template to use for the result")
 	flags.StringVar(&platform, "platform", platform, "specify platform for image to pull")
 	flags.BoolVar(&allowPlainTTP, "plain-http", allowPlainTTP, "Allow plain HTTP for registry requests")
+	flags.StringVar(&matchPattern, "pattern", matchPattern, "regexp pattern to match file paths")
 
 	var args []string
 	if len(os.Args) > 1 {
@@ -78,22 +72,6 @@ func main() {
 	if flags.NArg() < 1 {
 		fmt.Fprintln(os.Stderr, "requires at least 1 argument")
 		os.Exit(1)
-	}
-
-	if len(targetPaths) == 0 {
-		if targetsEnv := os.Getenv("TARGET_PATHS"); targetsEnv != "" {
-			targetPaths = filepath.SplitList(targetsEnv)
-		}
-		if len(targetBins) == 0 {
-			fmt.Fprintln(os.Stderr, "error: no target binaries specified")
-			os.Exit(1)
-		}
-	}
-	if len(targetBins) == 0 {
-		if targetBinsEnv := os.Getenv("TARGET_BINS"); targetBinsEnv != "" {
-			targetBins = strings.Split(targetBinsEnv, " ")
-		}
-		targetPaths = []string{"/"}
 	}
 
 	if debug {
@@ -133,9 +111,7 @@ func main() {
 			))),
 	})
 
-	if len(targetPaths) == 0 {
-		targetPaths = append(targetPaths, "/")
-	}
+	matcher := regexp.MustCompile(matchPattern)
 
 	for _, ref := range flags.Args() {
 		wg.Add(1)
@@ -155,6 +131,10 @@ func main() {
 			} else {
 				r.manifest = m
 
+				// So we don't have to allocate a new slice for every invocation of our
+				// walk function.
+				singlePath := make([]string, 1)
+
 				err := walkManifest(ctx, m, func(ctx context.Context, res Resource) error {
 					if res.Mode().IsDir() {
 						return nil
@@ -163,14 +143,13 @@ func main() {
 					if h, ok := res.(continuity.Hardlinkable); ok {
 						paths = h.Paths()
 					} else {
-						paths = []string{res.Path()}
+						singlePath[0] = res.Path()
+						paths = singlePath
 					}
 
 					for _, p := range paths {
-						for _, bin := range targetBins {
-							if filepath.Base(p) == bin {
-								r.Found = append(r.Found, p)
-							}
+						if matcher.MatchString(p) {
+							r.Found = append(r.Found, p)
 						}
 					}
 					return nil
