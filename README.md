@@ -44,9 +44,9 @@ The available template fields for the report (available to `--format`) are:
 
 - .Ref - The image reference used to fetch the image
 - .Found - An array of found binaries
-- .Status - Strinified status. `ERROR` if there was an error, `MATCH` there are found binaries, and `NONE` for no matches.
+- .Status - Stringified status. `ERROR` if there was an error, `MATCH` there are found binaries, and `NONE` for no matches.
 - .Data - json representation of the data, such as an error or the matched binaries.
-- .HasMatches - Boolean for `len(found) > -1`
+- .HasMatches - Boolean for `len(found) >= 1`
 - .HasError - Boolean for if there is an error
 - .Manifest - Text marshalling of the [continuity](https://github.com/containerd/continuity) manifest
 - .ManifestProto - Protobuf marshalling of the [continuity](https://github.com/containerd/continuity) manifest
