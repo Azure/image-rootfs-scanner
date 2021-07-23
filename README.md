@@ -48,6 +48,8 @@ The available template fields for the report (available to `--format`) are:
 - .Data - json representation of the data, such as an error or the matched binaries.
 - .HasMatches - Boolean for `len(found) > -1`
 - .HasError - Boolean for if there is an error
+- .Manifest - Text marshalling of the [continuity](https://github.com/containerd/continuity) manifest
+- .ManifestProto - Protobuf marshalling of the [continuity](https://github.com/containerd/continuity) manifest
 
 By default this scans for several different things such as `bash`, `zsh`,
 `ssh`, `curl`, and more. See `--help` for the full list.

@@ -11,10 +11,11 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/containerd/continuity"
 	"github.com/cpuguy83/dockercfg"
 	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
@@ -132,6 +133,10 @@ func main() {
 			))),
 	})
 
+	if len(targetPaths) == 0 {
+		targetPaths = append(targetPaths, "/")
+	}
+
 	for _, ref := range flags.Args() {
 		wg.Add(1)
 		if err := sem.Acquire(ctx, 1); err != nil {
@@ -141,17 +146,42 @@ func main() {
 			defer wg.Done()
 			defer sem.Release(1)
 
-			report, err := run(ctx, client, ref, snapshotter, containerd.WithPlatform(platform), func() containerd.RemoteOpt {
-				if snapshotter == "" {
-					return func(*containerd.Client, *containerd.RemoteContext) error {
+			ctx := log.WithLogger(ctx, log.G(ctx).WithField("ref", ref))
+			r := result{Ref: ref}
+
+			m, err := buildManifest(ctx, client, ref, snapshotter, platform, resolver)
+			if err != nil {
+				r.Err = err
+			} else {
+				r.manifest = m
+
+				err := walkManifest(ctx, m, func(ctx context.Context, res Resource) error {
+					if res.Mode().IsDir() {
 						return nil
 					}
+					var paths []string
+					if h, ok := res.(continuity.Hardlinkable); ok {
+						paths = h.Paths()
+					} else {
+						paths = []string{res.Path()}
+					}
+
+					for _, p := range paths {
+						for _, bin := range targetBins {
+							if filepath.Base(p) == bin {
+								r.Found = append(r.Found, p)
+							}
+						}
+					}
+					return nil
+				})
+				if err != nil {
+					r.Err = err
 				}
-				return containerd.WithPullSnapshotter(snapshotter)
-			}(), containerd.WithResolver(resolver))
+			}
 
 			buf := bytes.NewBuffer(nil)
-			if err := tmpl.Execute(buf, result{Found: report, Err: err, Ref: ref}); err != nil {
+			if err := tmpl.Execute(buf, r); err != nil {
 				panic(err)
 			}
 			fmt.Fprintln(os.Stdout, buf)
