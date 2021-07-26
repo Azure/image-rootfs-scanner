@@ -1,4 +1,4 @@
-module githunb.com/Azure/image-rootfs-scanner
+module github.com/Azure/image-rootfs-scanner
 
 go 1.16
 

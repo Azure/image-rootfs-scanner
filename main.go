@@ -40,7 +40,7 @@ func main() {
 		debug         bool
 		format        = envOrDefault("OUTPUT_FORMAT", "{{.}}")
 		platform      = platforms.DefaultString()
-		allowPlainTTP bool
+		allowPlainHTTP bool
 		matchPattern  = "bin/(sh|bash|ssh|curl|wget|nc|csh|zsh|fish)$"
 		matchTmpl     = "{{ regexp .Path \"" + matchPattern + "\" }}"
 	)
@@ -52,7 +52,7 @@ func main() {
 	flags.BoolVar(&debug, "debug", debug, "enable debug mode")
 	flags.StringVar(&format, "format", format, "set the template to use for the result")
 	flags.StringVar(&platform, "platform", platform, "specify platform for image to pull")
-	flags.BoolVar(&allowPlainTTP, "plain-http", allowPlainTTP, "Allow plain HTTP for registry requests")
+	flags.BoolVar(&allowPlainHTTP, "plain-http", allowPlainHTTP, "Allow plain HTTP for registry requests")
 	flags.StringVar(&matchPattern, "pattern", matchPattern, "regexp pattern to match file paths for the default matcher")
 	flags.StringVar(&matchTmpl, "match", matchTmpl, "go-template to run to determine if a file should be matched, must return a bool value")
 
@@ -108,7 +108,7 @@ func main() {
 	resolver := docker.NewResolver(docker.ResolverOptions{
 		Hosts: docker.ConfigureDefaultRegistries(
 			docker.WithPlainHTTP(func(string) (bool, error) {
-				return allowPlainTTP, nil
+				return allowPlainHTTP, nil
 			}),
 			docker.WithAuthorizer(docker.NewDockerAuthorizer(
 				docker.WithAuthCreds(dockercfg.GetRegistryCredentials),
