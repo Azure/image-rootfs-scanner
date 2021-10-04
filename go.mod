@@ -3,7 +3,7 @@ module github.com/Azure/image-rootfs-scanner
 go 1.16
 
 require (
-	github.com/containerd/containerd v1.5.5
+	github.com/containerd/containerd v1.5.6
 	github.com/containerd/continuity v0.1.0
 	github.com/cpuguy83/dockercfg v0.3.1
 	github.com/opencontainers/go-digest v1.0.0
