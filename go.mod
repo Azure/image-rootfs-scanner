@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/containerd/containerd v1.5.5
-	github.com/containerd/continuity v0.3.0
+	github.com/containerd/continuity v0.4.1
 	github.com/cpuguy83/dockercfg v0.3.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2
