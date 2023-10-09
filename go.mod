@@ -12,7 +12,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/pflag v1.0.5
 	go.etcd.io/bbolt v1.3.6
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sync v0.4.0
 )
 
 replace github.com/containerd/containerd => github.com/cpuguy83/containerd v0.0.0-20210712191206-cbdebd18eb69
